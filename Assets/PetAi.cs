@@ -13,7 +13,7 @@ public class PetAi : MonoBehaviour
     public NavMeshAgent agent;
     [Tooltip("Reference of the layers")]
     //public LayerMask isGround, isPlayer, isObstacle;
-    public LayerMask isGround;
+    public LayerMask isGround, isFood;
     //[Tooltip("Reference of the animation object")]
     //private Animator anim;
 
@@ -41,18 +41,20 @@ public class PetAi : MonoBehaviour
     //States
     [Tooltip("How far can the enemy see")]
     public float sightRange;
-    //[Tooltip("Enemy bool states")]
-    //public bool playerInSightRange, playerInAttackRange;
+    [Tooltip("food sight bool states")]
+    public bool foodInSight;
     //[Tooltip("will the ai track or attack the player")]
     //public bool willTrackPlayer, willAttackPlayer;
     //[Tooltip("will the ai place something")]
     //public bool willPlaceObstacle;
     //private bool hasShouted;
     private bool hasStopped;
+
     #endregion
 
     IEnumerator Patroling()
     {
+        //Debug.Log("Walking");
         if (hasStopped == false)
         {
             agent.speed = desiredWalkSpeed;
@@ -86,7 +88,7 @@ public class PetAi : MonoBehaviour
             //to-do add a pause for the ai whenever they reached thier destination (not a long pause, just a short one). If you don't want a pause, we can forget about it
             //des reached
             Debug.Log("MAG:"+distanceToWalkPoint.magnitude);
-            if (distanceToWalkPoint.magnitude < 0.1f)
+            if (distanceToWalkPoint.magnitude < 0.2f)
             {
                 hasStopped = true;
                 walkPointSet = false;
@@ -95,7 +97,7 @@ public class PetAi : MonoBehaviour
         }
         else if (hasStopped == true)
         {
-            yield return new WaitForSeconds(2.5f);
+            yield return new WaitForSeconds(1f);
             hasStopped = false;
         }
     }
@@ -123,17 +125,74 @@ public class PetAi : MonoBehaviour
         //get animator component
         //anim = GetComponent<Animator>();
     }
-    private void stopPatrolling()
+    public void stopPatrolling()
     {
         agent.isStopped = true;
     }
+    
+    public void resumePatrolling()
+    {
+        agent.isStopped = false;
+    }
+    private void eatFood()
+    {
+        //Debug.Log("Eating");
+        agent.speed = desiredWalkSpeed;
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, sightRange, isFood);
 
+        float closestDistance=0f;
+        GameObject closestFood=null;
+        if (hitColliders.Length != 0)
+        {
+            for (int i = 0; i < hitColliders.Length; i++)
+            {
+                if (i == 0)
+                {
+                    closestFood = hitColliders[i].gameObject;
+                    closestDistance = Vector3.Distance(closestFood.transform.position, transform.position);
+                }
+                else if (i != 0)
+                {
+                    var disCheck = Vector3.Distance(hitColliders[i].gameObject.transform.position, transform.position);
+                    if (disCheck < closestDistance)
+                    {
+                        closestFood = hitColliders[i].gameObject;
+                        closestDistance = Vector3.Distance(closestFood.transform.position, transform.position);
+                    }
+                }
+            }
+
+            try
+            {
+                //this line automatically also rotates the ai
+                agent.SetDestination(closestFood.transform.position);
+
+                //var dir = closestFood.transform.position - transform.position;
+                //dir.Normalize();
+                //transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), 0.5f * Time.deltaTime);
+            }
+            catch (MissingReferenceException)
+            {
+                Debug.LogError("Missing Food Object, is NULL");
+            }
+        }
+    }
     private void Start()
     {
         
     }
     private void FixedUpdate()
     {
-        StartCoroutine(Patroling());
+        foodInSight = Physics.CheckSphere(transform.position, sightRange, isFood);
+        //if there is food in sight
+        if (foodInSight)
+        {
+            eatFood();
+        }
+        //if there is nothing in sight
+        else
+        {
+            StartCoroutine(Patroling());
+        }
     }
 }
